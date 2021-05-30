@@ -1,0 +1,227 @@
+```{r}
+library(ISLR)
+library(MASS)
+
+#fix(Boston)
+attach(Boston)
+```
+
+```{r}
+names(Boston)
+```
+
+
+```{r}
+head(Boston)
+```
+
+
+```{r}
+# exploratory data analysis #
+summary(Boston)
+```
+
+
+```{r}
+# We observe following:
+#(a) all the variables are numeric 
+#(b) zn,chas,rad are integer variable most probably they indicate some sort of orginal/binary variables
+# we have 13 explanatory variables and 1 target variable
+
+# lets perform simple linear regression with the help of just 1 variable
+
+lm.fit = lm(medv~lstat,data=Boston)
+
+print(lm.fit)
+
+summary(lm.fit)
+
+```
+```{r}
+# lets check out how can we extract information from the summary 
+
+print(names(lm.fit))
+
+print(coef(lm.fit))
+```
+```{r}
+#lets now extract confidence interval information of the coefficients
+
+confint(lm.fit)
+```
+```{r}
+# lets now check out some predictions and corresponding confidence interval 
+
+print(predict(lm.fit,data.frame(lstat=(c(5,10,15))),interval='confidence'))
+
+print(predict(lm.fit,data.frame(lstat=(c(5,10,15))),interval='prediction'))
+```
+```{r}
+# we can see that prediction interval is wider as expected 
+
+#now lets see the plot indicating the regression line and data points 
+
+plot(lstat,medv)
+abline(lm.fit)
+```
+```{r}
+#lets now perform regression diagnostics 
+
+par(mfrow=c(2,2))
+plot(lm.fit)
+```
+```{r}
+# Some of the key observations here
+
+# (a) non linearity is visible with residual plot
+
+# (b) residuals also show heteroschedastic behaviour indicating that confidence intervals and other hypothesis testing results might not be reliable 
+
+# (c) We can clearlysee that standardized residuals are not showing normal behaviour this further strenghtends our assesment at (c)
+
+# (d) we can also observe no of outliers and high leverage points wit the help of bottom two plot. Even this suggests that regression, results by this model may not be reliable
+
+# possible remedial actions 
+
+# (a) non-linear tranformations sqrt,log etc.
+
+# (b) using other variables 
+
+# (c) checking if outliers and leverage points are erroneous entries, if they are remove then and remodel
+
+# for now however lets try some othe diagnostics methods 
+
+# lets try plotting residuals and studentized residuals 
+
+plot(predict(lm.fit),residuals(lm.fit))
+
+plot(predict(lm.fit),rstudent(lm.fit))
+
+# we make similiar observations 
+
+```
+```{r}
+# now lets check fir leverage points 
+
+plot(hatvalues(lm.fit ))
+which.max(hatvalues(lm.fit))
+
+# we observe the index of data point with highest leverage statistics 
+```
+```{r}
+# Lets now perform MULTIPLE LINEAR REGRESSION #
+
+lm.fit2 = lm(medv~lstat+age,data=Boston)
+
+print(summary(lm.fit2))
+
+lm.fit3 = lm(medv~.,data=Boston)
+
+print(summary(lm.fit3))
+
+```
+```{r}
+# Lets check vifs 
+
+library(car)
+
+vif(lm.fit3)
+```
+```{r}
+
+# we observe that all the values are low hence there is no evidence of multicolliearity among variables
+
+# we also observe that P value associated with age is quite high indicating that it is not significatly contributing in target variable 
+
+# lets try removing this variable and remodelling 
+
+
+lm.fit4 = lm(medv~.-age,data=Boston)
+
+print(summary(lm.fit4))
+
+# we again observe that P value associated with indus is still quite high indicating that it is not significatly contributing in target variable 
+
+# lets try removing this variable and remodelling 
+
+lm.fit5 = lm(medv~.-(age+indus),data=Boston)
+
+print(summary(lm.fit5))
+
+# we  now observe that all the variable are significantly contributing towards explaining the target variable 
+
+```
+```{r}
+# lets now try for interaction terms 
+
+summary(lm(medv~lstat*age-age,data=Boston))
+
+# this is modified from ISLR and only includes terms lstat and lstatxage
+
+```
+```{r}
+# Lets now try for non-linear tranformations on predictors 
+
+lm.fit6 = lm(medv~lstat+I(lstat^2),data = Boston)
+
+summary(lm.fit6)
+
+```
+```{r}
+# lets perform an F test to compare two models linear and non-linear transformed model to observer whether there is significant evidence to say that model 2 is better than model 1 
+
+# we will use anova() function to perform this 
+
+anova(lm.fit,lm.fit6)
+
+# we see that 
+```
+```{r}
+par(mfrow=c(2,2))
+plot(lm.fit6)
+
+# we observe improved behaviour of residuals 
+```
+```{r}
+# Lets now try by adding some more polynomial terms and see the behaviour
+
+lm.fit7=lm(medv~poly(lstat,5))
+
+summary(lm.fit7)
+
+par(mfrow=c(2,2))
+plot(lm.fit7)
+
+```
+```{r}
+# we see even more improvement in residual pattern
+
+# lets now try with log transformation of data 
+
+summary (lm(medv~log(rm),data=Boston))
+```
+```{r}
+# Handling qualitatitve variables 
+
+
+#fix(Carseats)
+names(Carseats)
+
+# we also utilise some interaction terms
+
+lm.fit8 = lm(Sales~.+Income:Advertising+Price:Age,data=Carseats)
+
+summary(lm.fit8)
+
+# model performs quite well with adjusted R2 of .8719
+
+```
+```{r}
+# lets study how dummy variables ShelveLocGood and ShelveLocMedium are created from the original variable ShelveLoc
+
+attach(Carseats)
+contrasts(ShelveLoc)
+
+# we see that two variables are created ShelveLocGood = 1 if shelving location is good or zero otherwise.
+```
+
