@@ -1,0 +1,377 @@
+```{r}
+# CHAPTER 4 LOGISTIC REGRESSION, LDA, QDA AND KNN
+
+# DATASET BEING USED HERE IS THE STOCK MARKET DATA # 
+
+# LET US START WITH SOME EDA OF THE DATASET #
+
+library(ISLR)
+head(Smarket)
+```
+```{r}
+# we see that there are 9 columns indicating lagged returns, volumes, todays returns and finally whether return has increase or decreased
+
+print(dim(Smarket))
+summary(Smarket)
+```
+```{r}
+# we see that that return columns have more or less of similiar properties like min, median, mean etc. volume has all positive values (which makes sense). Also we observe that categorical variable 'Direction' is more or less balanced
+
+# lets now have a look at the returns
+
+plot(Smarket$Today)
+```
+```{r}
+
+# we observe that returns shoq quite a random character and does not seem to be homoscedastic
+
+# lets now check correlation among these columns except 'Direction' which is a categorical variable 
+
+cor(Smarket[,-9])
+```
+```{r}
+# We observe very little correlation among the lagged values of returns however there is significant positive correlation of today's returns with the volume which is again a sensible observation
+
+attach(Smarket)
+plot(Volume,type='l')
+```
+```{r}
+# LOGISTIC REGRESSION #
+
+# Initially we will use all the remaining variables to predict Direction using glm method #
+
+glm.fit = glm(Direction ~.-(Year+Today), data = Smarket, family=binomial)
+
+summary(glm.fit)
+
+```
+```{r}
+# We observe that least p value is associated with lag1 meaning that if market had a positive return yesterday, it will go down today. but we do not have enough evidence for this. We observe that p-value for all the coefficients are higher than .05 so there is not enough evidence that any of them contribute significantly towards prediction fo direction.#
+
+coef(glm.fit)                # coefficients
+summary(glm.fit)$coef[,4]    # p-values
+```
+```{r}
+# Let's see how dummy variables are constructed for direction
+contrasts(Direction) 
+
+# now lets make prediction on train data using predict function
+
+glm.probs=predict(glm.fit,type='response')
+
+glm.probs[1:10]
+```
+```{r}
+# lets now convert prediction to 'up' or 'down'
+
+glm.pred=rep("Up",1250)
+glm.pred[glm.probs<=.5]="Down"
+
+# lets now see the confusion matrix
+
+table(glm.pred,Direction)
+```
+```{r}
+# we see that logistic regression is performing just a little better than random guessing on training data which is not a good performance#
+
+# lets divide the data in train and validation sets and observe how model performs
+
+# we are choosing data prior 2005 as train 
+
+train = (Year<2005)
+Smarket.2005=Smarket[!train,]
+Direction.2005 = Direction[!train]
+dim(Smarket.2005)
+
+```
+```{r}
+# now we will fit a model using train data and use validation set for checking performance
+
+glm.fit2 = glm(Direction ~.-(Year+Today), data = Smarket, family=binomial,subset=train)
+
+# predicting probabilities 
+
+glm.probs2=predict(glm.fit2,Smarket.2005,"response")
+
+# converting probabilities to classes 'Up' and 'Down'
+
+glm.pred2=rep("Up",252)
+glm.pred2[glm.probs2<=.5]="Down"
+
+# confusion matrix 
+
+print(table(glm.pred2,Direction.2005))
+
+# accuracy
+
+print(mean(glm.pred2==Direction.2005))
+
+# error rate
+
+print(mean(glm.pred2!=Direction.2005))
+
+```
+```{r}
+# now we will fit a model using train data and use validation set for checking performance
+
+glm.fit3 = glm(Direction ~ Lag1+Lag2, data = Smarket, family=binomial,subset=train)
+
+# predicting probabilities 
+
+glm.probs3=predict(glm.fit3,Smarket.2005,"response")
+
+# converting probabilities to classes 'Up' and 'Down'
+
+glm.pred3=rep("Up",252)
+glm.pred3[glm.probs3<=.5]="Down"
+
+# confusion matrix    
+
+print(table(glm.pred3,Direction.2005))
+
+# accuracy
+
+print(mean(glm.pred3==Direction.2005))
+
+# error rate
+
+print(mean(glm.pred3!=Direction.2005))
+```
+```{r}
+# LINEAR DISCRIMINANT ANALYSIS #
+
+# we use lda function for the same which takes inputs in similiar format except for family argument #
+
+library(MASS)
+
+lda.fit = lda(Direction ~ Lag1+Lag2,data=Smarket,subset=train)
+
+print(lda.fit)
+
+```
+```{r}
+# plotting the histogram of discriminants for two classes we see that for UP values are more or less symmetric whereas for Down they are positively skewed
+
+plot(lda.fit)
+```
+```{r}
+# lets now validate model on validation set 
+
+lda.pred=predict(lda.fit,Smarket.2005)
+
+names(lda.pred)
+```
+```{r}
+# extracting classes from the prediction matrix 
+
+lda.class=lda.pred$class
+
+# generating confusion matrix 
+
+print(table(lda.class,Direction.2005))
+
+# checking accuracy
+
+print(mean(lda.class==Direction.2005))
+
+```
+```{r}
+# we observe similiar performance as logistic regression 
+
+# same results can be obtained using threshold of .5 on posteriers 
+
+sum(lda.pred$posterior[,1]>.5)
+```
+```{r}
+
+# QUADRATIC DISCRIMINANT ANALYSIS #
+
+# we will perform similiar experiment with training on train subset and checking on validation set. we will observe confusion matrix and accuracy.#
+
+qda.fit = qda(Direction ~ Lag1+Lag2,data=Smarket,subset = train)
+
+print(qda.fit)
+
+# prediction of validation set #
+
+qda.class = predict(qda.fit,Smarket.2005)$class
+
+print('------------------//confusion matrix //-------------')
+
+print(table(qda.class,Direction.2005))
+
+print('------------------//accuracy//-------------')
+
+print(mean(qda.class==Direction.2005))
+```
+```{r}
+# We observe that qda performed way better on the validation set that linear models like LDA and logistic regression#
+
+# K-NEAREST NEIGHBORS #
+
+# for this part we will be using knn function from class library 
+
+library(class)
+
+# function takes 4 inputs (a) predictors for training set (b) predictors for validation/test set (c) target for training set (d) no. of nearest neighbours 
+
+# so lets first prepare the data for knn function 
+
+train.X=cbind(Lag1,Lag2)[train,]
+test.X=cbind(Lag1,Lag2)[!train,]
+train.Direction = Direction[train]
+
+# lets now fit knn model and predict
+
+set.seed(1)
+
+knn.pred = knn(train.X,test.X,train.Direction,k=1)
+
+print('------------------//confusion matrix //-------------')
+
+print(table(knn.pred,Direction.2005))
+
+print('------------------//accuracy//-------------')
+
+print(mean(knn.pred==Direction.2005))
+
+```
+```{r}
+# lets now perform hyperparameter tuning on k and choose the value of k giving best validation score. To do this we predict using knn for a range of k values and see validation performance #
+acc=rep(0,20)
+for (i in 1:20){
+  set.seed(1)
+  knn.pred = knn(train.X,test.X,train.Direction,k=i)
+  acc[i]=mean(knn.pred==Direction.2005)
+}
+
+print(which(acc==max(acc)))
+```
+```{r}
+plot(acc,type='l')
+```
+```{r}
+# APPLICATION OF CARAVAN DATASET #
+
+# lets perform very basic EDA to begin with
+attach(Caravan)
+dim(Caravan)
+```
+```{r}
+# we see that there are 5822 customers and 86 variables 
+
+# our target variable is Purchage 
+
+summary(Caravan$Purchase)
+```
+
+
+```{r}
+# we observe that this is quite imbalanced 
+
+# we will first start with KNN. To perform KNN we have to scale the data, as KNN tend to perform better if all the variables has mean zero and standard deviation 1#
+
+standardized.X = scale(Caravan[,-86])
+
+# lets check variance and mean of some columns 
+
+var(standardized.X[,1])
+mean(standardized.X[,1])
+```
+```{r}
+# lets now prepare the data and perform KNN 
+test = 1:1000
+
+train.X=standardized.X[-test,]
+test.X=standardized.X[test,]
+train.Y=Purchase[-test]
+test.Y=Purchase[test]
+
+set.seed(1)
+
+knn.pred_c = knn(train.X,test.X,train.Y,k=1)
+
+print('------------------//accuracy //-------------')
+
+print(mean(test.Y!=knn.pred_c))
+
+print('------------------//confusion matrix //-------------')
+
+print(table(test.Y,knn.pred_c))
+```
+```{r}
+# This is a very bad performance since due to the imbalanced class even if a randomly assign no to every customer, there will be 6% accuracy. out of 59 yes we could only predict 9 of them correctly
+
+# lets now see how it performance tend to vary with increase in number of neighbors in consideration. Since this is an imbalanced class we will also observe F1 score
+
+ library(MLmetrics)
+
+acc_c=rep(0,20)
+f1_score_c=rep(0,20)
+
+for (i in 1:20){
+  set.seed(1)
+  knn.pred_c = knn(train.X,test.X,train.Y,k=i)
+  acc_c[i]=mean(knn.pred_c==test.Y)
+  f1_score_c[i] = F1_Score(test.Y, knn.pred_c)
+  cat(i,'of', length(acc_c),'\n')
+}
+
+```
+```{r}
+cat('K with highest accuracy: ', which(acc_c==max(acc_c)),'\n')
+cat('K with highest F1 score: ', which(f1_score_c==max(f1_score_c)),'\n')
+```
+```{r}
+plot(acc_c,type='l')
+plot(f1_score_c,type='l')
+```
+```{r}
+set.seed(1)
+
+knn.pred_c = knn(train.X,test.X,train.Y,k=9)
+
+print('------------------//accuracy //-------------')
+
+print(mean(test.Y!=knn.pred_c))
+
+print('------------------//confusion matrix //-------------')
+
+print(table(test.Y,knn.pred_c))
+```
+```{r}
+# We see that this model peforms very bad in comparision with k =1. It was able to predict on 1 yes correctly.
+
+# This may be due to the higher no. of variables KNN is suffering from curse of dimensionality 
+
+# now lets check logistic regression model 
+
+glm.fit4=glm(Purchase ~.,data = Caravan,family = binomial,subset=-test)
+
+# making predictions 
+
+glm.probs4 = predict(glm.fit4,Caravan[test,],type='response')
+
+glm.pred4=rep("No",1000)
+
+glm.pred4[glm.probs4>.5]="Yes"
+
+print(table(glm.pred4,test.Y))
+```
+```{r}
+# again we see that the no. of Yes correctly predicted is very less 
+
+# lets try to reduce the threshold of .5 and observe how is the classification 
+
+glm.pred4m=rep("No",1000)
+
+glm.pred4m[glm.probs4>.25]="Yes"
+
+print(table(glm.pred4m,test.Y))
+
+```
+```{r}
+# We observe a much better performance with this threshold.
+```
+
+
